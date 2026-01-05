@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法咒語對戰：九九乘法</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+
+        body {
+            font-family: 'ZCOOL+KuaiLe', 'Microsoft JhengHei', cursive;
+            background-color: #1a202c;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #2d3748 0%, #1a202c 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background 1s ease;
+        }
+
+        /* 第二關卡背景顏色 */
+        .stage-2-bg {
+            background: linear-gradient(to bottom, #4a1d1d 0%, #1a0a0a 100%) !important;
+        }
+
+        /* 森林背景層 */
+        .forest-bg {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 40%;
+            background: linear-gradient(transparent, #276749);
+            z-index: 1;
+            transition: background 1s ease;
+        }
+
+        .stage-2-forest {
+            background: linear-gradient(transparent, #742a2a) !important;
+        }
+
+        /* 怪獸動畫 */
+        .monster {
+            position: absolute;
+            transition: transform 0.1s linear;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .monster-sprite {
+            font-size: 80px;
+            filter: drop-shadow(0 0 10px rgba(255,0,0,0.5));
+            animation: bounce 0.5s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-10px); }
+        }
+
+        .target-bubble {
+            background: white;
+            border: 4px solid #e53e3e;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #c53030;
+            margin-bottom: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* 魔法特效 */
+        .spell-effect {
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+            animation: fadeOut 0.5s forwards;
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(2); }
+        }
+
+        /* 介面樣式 */
+        .magic-book {
+            background: #744210;
+            border: 8px solid #d69e2e;
+            border-radius: 10px;
+            box-shadow: 0 10px 0 #54300a;
+        }
+
+        .num-btn {
+            transition: all 0.1s;
+            box-shadow: 0 4px 0 #2c5282;
+        }
+
+        .num-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .combo-text {
+            animation: pop 0.3s ease-out;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5); color: #f6e05e; }
+            100% { transform: scale(1); }
+        }
+
+        /* 螢幕震動 */
+        .shake {
+            animation: shakeAnim 0.3s;
+        }
+
+        @keyframes shakeAnim {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(5px, 5px); }
+            50% { transform: translate(-5px, -5px); }
+            75% { transform: translate(5px, -5px); }
+        }
+
+        /* 關卡切換文字 */
+        #stage-announcement {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fbd38d;
+            font-size: 5rem;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8);
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-app" class="game-container">
+    <div id="stage-announcement">第二關：暗影森林</div>
+
+    <!-- 頂部資訊 -->
+    <div class="absolute top-4 w-full px-6 flex justify-between items-center z-50">
+        <div class="flex flex-col">
+            <div class="text-white text-xl mb-1">森林防禦力</div>
+            <div class="w-64 h-6 bg-gray-700 rounded-full border-2 border-white overflow-hidden">
+                <div id="hp-bar" class="h-full bg-green-500 transition-all duration-300" style="width: 100%"></div>
+            </div>
+        </div>
+        
+        <div class="text-center">
+            <div id="combo-display" class="text-yellow-400 text-3xl font-bold italic hidden combo-text">COMBO 0</div>
+            <div id="score-display" class="text-white text-2xl">分數: 0</div>
+        </div>
+
+        <div class="text-right text-white">
+            <div class="text-lg">等級: <span id="level-display">初級巫師</span></div>
+            <div class="text-sm text-yellow-300">關卡: <span id="stage-display">1</span></div>
+        </div>
+    </div>
+
+    <!-- 怪獸區域 -->
+    <div id="battle-field" class="relative w-full h-full">
+        <!-- 怪獸會在這裡生成 -->
+    </div>
+
+    <div id="forest-bg" class="forest-bg"></div>
+
+    <!-- 底部操作區 -->
+    <div class="absolute bottom-8 w-full flex flex-col items-center z-50">
+        <!-- 魔法書：基礎數字 -->
+        <div class="magic-book p-4 mb-4 flex items-center space-x-4">
+            <span class="text-white text-2xl">魔法書之語：</span>
+            <div id="base-num" class="bg-white text-black text-5xl font-bold w-20 h-20 flex justify-center items-center rounded shadow-inner">
+                ?
+            </div>
+            <span class="text-white text-4xl">×</span>
+            <div class="bg-blue-900 border-2 border-blue-300 text-white text-5xl font-bold w-20 h-20 flex justify-center items-center rounded italic">
+                ?
+            </div>
+        </div>
+
+        <!-- 數字按鈕 -->
+        <div class="grid grid-cols-5 gap-3">
+            <button onclick="castSpell(1)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">1</button>
+            <button onclick="castSpell(2)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">2</button>
+            <button onclick="castSpell(3)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">3</button>
+            <button onclick="castSpell(4)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">4</button>
+            <button onclick="castSpell(5)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">5</button>
+            <button onclick="castSpell(6)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">6</button>
+            <button onclick="castSpell(7)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">7</button>
+            <button onclick="castSpell(8)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">8</button>
+            <button onclick="castSpell(9)" class="num-btn w-16 h-16 bg-blue-500 text-white text-2xl font-bold rounded-xl hover:bg-blue-400">9</button>
+            <button onclick="resetGame()" class="w-16 h-16 bg-red-600 text-white text-xs font-bold rounded-xl flex items-center justify-center">重新<br>開始</button>
+        </div>
+    </div>
+
+    <!-- 啟動畫面 -->
+    <div id="start-screen" class="absolute inset-0 z-[100] bg-black bg-opacity-80 flex flex-center justify-center items-center">
+        <div class="text-center p-8 bg-gray-800 rounded-2xl border-4 border-yellow-500 max-w-md">
+            <h1 class="text-5xl text-yellow-400 mb-4">乘法咒語對戰</h1>
+            <p class="text-white text-lg mb-6">點選正確的數字，阻止怪獸入侵森林！<br>分數達到 1000 將進入第二關！</p>
+            <button onclick="startGame()" class="px-10 py-4 bg-green-500 text-white text-3xl rounded-full hover:bg-green-400 transition transform hover:scale-110">開始施法</button>
+        </div>
+    </div>
+
+    <!-- 遊戲結束畫面 -->
+    <div id="end-screen" class="absolute inset-0 z-[100] bg-black bg-opacity-90 hidden flex flex-center justify-center items-center">
+        <div class="text-center p-8 bg-gray-800 rounded-2xl border-4 border-red-500">
+            <h1 class="text-5xl text-red-500 mb-4">森林陷落！</h1>
+            <p class="text-white text-2xl mb-2">你的最終分數</p>
+            <div id="final-score" class="text-yellow-400 text-7xl font-bold mb-6">0</div>
+            <button onclick="location.reload()" class="px-10 py-4 bg-blue-500 text-white text-2xl rounded-full hover:bg-blue-400 transition">再次挑戰</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const gameState = {
+        score: 0,
+        hp: 100,
+        combo: 0,
+        level: 1,
+        stage: 1,
+        activeMonster: null,
+        baseNum: 1,
+        isRunning: false,
+        monsterSpeed: 1.5,
+        spawnInterval: 4000
+    };
+
+    const monsterEmojis = ['👹', '👾', '👻', '🦇', '🐉', '🧟'];
+    const battleField = document.getElementById('battle-field');
+    const hpBar = document.getElementById('hp-bar');
+    const scoreDisplay = document.getElementById('score-display');
+    const comboDisplay = document.getElementById('combo-display');
+    const baseNumDisplay = document.getElementById('base-num');
+    const levelDisplay = document.getElementById('level-display');
+    const stageDisplay = document.getElementById('stage-display');
+    const gameApp = document.getElementById('game-app');
+    const forestBg = document.getElementById('forest-bg');
+    const announcement = document.getElementById('stage-announcement');
+
+    function startGame() {
+        document.getElementById('start-screen').classList.add('hidden');
+        gameState.isRunning = true;
+        spawnMonster();
+        gameLoop();
+    }
+
+    function gameLoop() {
+        if (!gameState.isRunning) return;
+
+        // 更新所有怪獸的位置
+        const monsters = document.querySelectorAll('.monster');
+        monsters.forEach(m => {
+            let top = parseFloat(m.style.top);
+            top += gameState.monsterSpeed;
+            m.style.top = top + 'px';
+
+            // 檢查是否撞擊螢幕 (高度假設為 60% 處)
+            if (top > window.innerHeight * 0.6) {
+                takeDamage();
+                m.remove();
+                if (gameState.activeMonster === m) {
+                    gameState.activeMonster = null;
+                    spawnMonster();
+                }
+            }
+        });
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function spawnMonster() {
+        if (!gameState.isRunning) return;
+        
+        // 隨機出題
+        const a = Math.floor(Math.random() * 8) + 2; // 2-9
+        const b = Math.floor(Math.random() * 8) + 2; // 2-9
+        const target = a * b;
+        
+        gameState.baseNum = a;
+        baseNumDisplay.innerText = a;
+
+        const monsterEl = document.createElement('div');
+        monsterEl.className = 'monster';
+        monsterEl.style.left = (Math.random() * 60 + 20) + '%';
+        monsterEl.style.top = '-100px';
+        monsterEl.dataset.answer = b;
+        
+        const emoji = monsterEmojis[Math.floor(Math.random() * monsterEmojis.length)];
+        monsterEl.innerHTML = `
+            <div class="target-bubble">${target}</div>
+            <div class="monster-sprite">${emoji}</div>
+        `;
+
+        battleField.appendChild(monsterEl);
+        gameState.activeMonster = monsterEl;
+    }
+
+    function castSpell(num) {
+        if (!gameState.isRunning || !gameState.activeMonster) return;
+
+        const correctAnswer = parseInt(gameState.activeMonster.dataset.answer);
+        
+        if (num === correctAnswer) {
+            playEffect(gameState.activeMonster, '💥');
+            gameState.activeMonster.remove();
+            gameState.activeMonster = null;
+            
+            gameState.score += 10 + (gameState.combo * 2);
+            gameState.combo++;
+            
+            updateUI();
+            
+            if (gameState.combo >= 5) {
+                triggerSuperMagic();
+            } else {
+                setTimeout(spawnMonster, 300);
+            }
+        } else {
+            gameState.combo = 0;
+            updateUI();
+            
+            // 視覺處罰：怪獸加速衝過來
+            gameState.monsterSpeed += 2;
+            gameApp.classList.add('shake');
+            setTimeout(() => {
+                gameApp.classList.remove('shake');
+                // 回復到當前關卡應有的速度
+                gameState.monsterSpeed = (gameState.stage === 1) ? 
+                    (1.5 + (gameState.score / 500)) : 
+                    (3.5 + (gameState.score / 1000));
+            }, 300);
+        }
+    }
+
+    function triggerSuperMagic() {
+        const flash = document.createElement('div');
+        flash.className = 'absolute inset-0 bg-white z-[60] opacity-0 transition-opacity';
+        document.body.appendChild(flash);
+        setTimeout(() => flash.style.opacity = '0.8', 50);
+        setTimeout(() => flash.style.opacity = '0', 200);
+        setTimeout(() => flash.remove(), 400);
+
+        const monsters = document.querySelectorAll('.monster');
+        monsters.forEach(m => {
+            playEffect(m, '⚡');
+            m.remove();
+        });
+        
+        gameState.activeMonster = null;
+        gameState.score += 50;
+        updateUI();
+        
+        setTimeout(spawnMonster, 1000);
+    }
+
+    function playEffect(targetEl, emoji) {
+        const rect = targetEl.getBoundingClientRect();
+        const effect = document.createElement('div');
+        effect.className = 'spell-effect text-5xl';
+        effect.style.left = rect.left + 'px';
+        effect.style.top = rect.top + 'px';
+        effect.innerText = emoji;
+        document.body.appendChild(effect);
+        setTimeout(() => effect.remove(), 500);
+    }
+
+    function takeDamage() {
+        gameState.hp -= 20;
+        gameState.combo = 0;
+        updateUI();
+        
+        gameApp.classList.add('shake');
+        setTimeout(() => gameApp.classList.remove('shake'), 300);
+
+        if (gameState.hp <= 0) {
+            gameOver();
+        }
+    }
+
+    function updateUI() {
+        hpBar.style.width = gameState.hp + '%';
+        if (gameState.hp < 30) hpBar.className = 'h-full bg-red-600 transition-all';
+        else if (gameState.hp < 60) hpBar.className = 'h-full bg-yellow-500 transition-all';
+        else hpBar.className = 'h-full bg-green-500 transition-all';
+
+        scoreDisplay.innerText = `分數: ${gameState.score}`;
+        
+        if (gameState.combo > 1) {
+            comboDisplay.innerText = `COMBO ${gameState.combo}`;
+            comboDisplay.classList.remove('hidden');
+        } else {
+            comboDisplay.classList.add('hidden');
+        }
+
+        // 檢查分數是否達到第二關門檻 (1000分)
+        if (gameState.score >= 1000 && gameState.stage === 1) {
+            startStageTwo();
+        }
+
+        // 難度與頭銜更新
+        if (gameState.score > 2000) {
+            gameState.level = 4;
+            levelDisplay.innerText = "傳奇大導師";
+        } else if (gameState.score > 1000) {
+            gameState.level = 3;
+            levelDisplay.innerText = "大魔導師";
+        } else if (gameState.score > 500) {
+            gameState.level = 2;
+            levelDisplay.innerText = "中級巫師";
+        }
+    }
+
+    function startStageTwo() {
+        gameState.stage = 2;
+        gameState.monsterSpeed = 3.5; // 第二關初始速度較快
+        stageDisplay.innerText = "2";
+        
+        // 切換背景樣式
+        gameApp.classList.add('stage-2-bg');
+        forestBg.classList.add('stage-2-forest');
+
+        // 顯示關卡公告
+        announcement.style.opacity = '1';
+        setTimeout(() => {
+            announcement.style.opacity = '0';
+        }, 2000);
+    }
+
+    function gameOver() {
+        gameState.isRunning = false;
+        document.getElementById('end-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = gameState.score;
+    }
+
+    function resetGame() {
+        if(confirm("確定要放棄目前的魔法對戰嗎？")) {
+            location.reload();
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        const key = parseInt(e.key);
+        if (key >= 1 && key <= 9) {
+            castSpell(key);
+        }
+    });
+
+</script>
+</body>
+</html>
